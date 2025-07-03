@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Unregister Service Worker</title>
+</head>
+<body>
+    <h1>Unregistering Service Worker...</h1>
+    <div id="status">Working...</div>
+    
+    <script>
+        async function unregisterServiceWorkers() {
+            const statusDiv = document.getElementById('status');
+            
+            if ('serviceWorker' in navigator) {
+                try {
+                    const registrations = await navigator.serviceWorker.getRegistrations();
+                    
+                    if (registrations.length === 0) {
+                        statusDiv.innerHTML = '<p style="color: green;">No service workers found to unregister.</p>';
+                        return;
+                    }
+                    
+                    for (let registration of registrations) {
+                        await registration.unregister();
+                        console.log('Service worker unregistered:', registration.scope);
+                    }
+                    
+                    // Clear all caches
+                    const cacheNames = await caches.keys();
+                    await Promise.all(
+                        cacheNames.map(cacheName => caches.delete(cacheName))
+                    );
+                    
+                    statusDiv.innerHTML = `
+                        <p style="color: green;">✅ Successfully unregistered ${registrations.length} service worker(s)</p>
+                        <p style="color: green;">✅ Cleared all caches</p>
+                        <p><strong>Please close this tab and refresh your main application.</strong></p>
+                    `;
+                    
+                } catch (error) {
+                    console.error('Error unregistering service workers:', error);
+                    statusDiv.innerHTML = `<p style="color: red;">❌ Error: ${error.message}</p>`;
+                }
+            } else {
+                statusDiv.innerHTML = '<p style="color: orange;">Service workers not supported in this browser.</p>';
+            }
+        }
+        
+        // Run automatically when page loads
+        unregisterServiceWorkers();
+    </script>
+</body>
+</html>
