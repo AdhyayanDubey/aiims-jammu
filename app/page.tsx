@@ -6,13 +6,13 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Eye, EyeOff, Heart, Activity, Users, Calendar, Phone, Mail, MapPin } from "lucide-react"
+import { Eye, EyeOff, Activity, Users, Calendar, Phone, Mail, MapPin } from "lucide-react"
 import { useRouter } from "next/navigation"
 import toast from "react-hot-toast"
 import Image from "next/image"
 
 export default function Home() {
-  const [user, setUser] = useState<any>(null)
+  const [user, setUser] = useState<{role: string; firstName: string} | null>(null)
   const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const router = useRouter()
@@ -155,7 +155,7 @@ export default function Home() {
 
   // Main sign in/up form
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 flex flex-col">
+    <div className="min-h-screen flex flex-col">
       {/* Header */}
       <div className="bg-white/90 backdrop-blur-sm shadow-lg border-b border-white/20 sticky top-0 z-50">
         <div className="container mx-auto px-4 py-4">
@@ -193,55 +193,67 @@ export default function Home() {
       </div>
 
       {/* Main Content */}
-      <div className="flex-1 container mx-auto px-4 py-12">
-        <div className="grid lg:grid-cols-2 gap-12 items-center max-w-7xl mx-auto">
-          {/* Left Side - Hospital Image */}
-          <div className="relative rounded-2xl overflow-hidden shadow-2xl">
+      <div className="flex-1 relative">
+        {/* Background Image Section */}
+        <div className="relative h-screen flex items-center justify-center">
+          <div className="absolute inset-0">
             <Image
               src="/images/IMG-20240719-WA0007.jpg"
               alt="AIIMS Jammu Hospital"
-              width={600}
-              height={400}
-              className="w-full h-full object-cover"
+              fill
+              className="object-cover"
+              priority
             />
-            <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent flex items-end">
-              <div className="p-8 text-white">
-                <h3 className="text-2xl font-bold mb-2">Modern Healthcare Facility</h3>
-                <p className="text-gray-200">State-of-the-art medical equipment and experienced professionals</p>
-              </div>
-            </div>
+            <div className="absolute inset-0 bg-gradient-to-r from-black/60 via-black/30 to-black/40"></div>
           </div>
+          
+          {/* Content Overlay */}
+          <div className="relative z-10 container mx-auto px-4">
+            <div className="grid lg:grid-cols-2 gap-8 items-center min-h-screen py-12">
+              {/* Left Side - Hero Content */}
+              <div className="text-white lg:text-left text-center order-2 lg:order-1">
+                <div className="bg-black/30 backdrop-blur-sm rounded-3xl p-8 border border-white/20">
+                  <h2 className="text-4xl lg:text-6xl font-bold mb-6 leading-tight text-white drop-shadow-2xl">
+                    Your Health, <span className="text-blue-300 drop-shadow-2xl">Our Priority</span>
+                  </h2>
+                  <p className="text-lg lg:text-xl mb-8 text-white leading-relaxed drop-shadow-lg font-medium">
+                    Connect with healthcare professionals and manage your appointments seamlessly
+                  </p>
+                  <div className="bg-white/90 backdrop-blur-sm rounded-2xl p-6 border border-white/30 max-w-md mx-auto lg:mx-0 shadow-2xl">
+                    <h3 className="text-xl lg:text-2xl font-bold mb-3 text-gray-800">Modern Healthcare Facility</h3>
+                    <p className="text-gray-700 text-base lg:text-lg font-medium">State-of-the-art medical equipment and experienced professionals</p>
+                  </div>
+                </div>
+              </div>
 
-          {/* Right Side - Auth Forms */}
-          <div className="w-full max-w-md mx-auto lg:mx-0">
-            <div className="text-center mb-8">
-              <h2 className="text-4xl font-bold text-gray-900 mb-4">
-                Your Health, <span className="text-blue-600">Our Priority</span>
-              </h2>
-              <p className="text-lg text-gray-600">
-                Connect with healthcare professionals and manage your appointments seamlessly
-              </p>
-            </div>
+              {/* Right Side - Auth Forms */}
+              <div className="w-full max-w-lg mx-auto order-1 lg:order-2">
 
-            <Tabs defaultValue="signin" className="w-full">
-              <TabsList className="grid w-full grid-cols-2 mb-8 bg-white/70 backdrop-blur-sm">
-                <TabsTrigger value="signin" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white">
-                  Sign In
-                </TabsTrigger>
-                <TabsTrigger value="signup" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white">
-                  Sign Up
-                </TabsTrigger>
-              </TabsList>
+                <Tabs defaultValue="signin" className="w-full">
+                  <TabsList className="grid w-full grid-cols-2 mb-6 bg-white/80 backdrop-blur-sm rounded-xl p-1 shadow-lg">
+                    <TabsTrigger 
+                      value="signin" 
+                      className="data-[state=active]:bg-blue-600 data-[state=active]:text-white data-[state=active]:shadow-md rounded-lg transition-all duration-200"
+                    >
+                      Sign In
+                    </TabsTrigger>
+                    <TabsTrigger 
+                      value="signup" 
+                      className="data-[state=active]:bg-blue-600 data-[state=active]:text-white data-[state=active]:shadow-md rounded-lg transition-all duration-200"
+                    >
+                      Sign Up
+                    </TabsTrigger>
+                  </TabsList>
 
-              {/* Sign In Tab */}
-              <TabsContent value="signin">
-                <Card className="shadow-2xl border-0 bg-white/90 backdrop-blur-sm">
-                  <CardHeader className="text-center">
-                    <CardTitle className="text-2xl font-bold text-gray-800">Welcome Back</CardTitle>
-                    <CardDescription className="text-gray-600">
-                      Sign in to access your healthcare dashboard
-                    </CardDescription>
-                  </CardHeader>
+                  {/* Sign In Tab */}
+                  <TabsContent value="signin">
+                    <Card className="shadow-2xl border-0 bg-white/95 backdrop-blur-sm">
+                      <CardHeader className="text-center">
+                        <CardTitle className="text-2xl font-bold text-gray-800">Welcome Back</CardTitle>
+                        <CardDescription className="text-gray-600">
+                          Sign in to access your healthcare dashboard
+                        </CardDescription>
+                      </CardHeader>
                   <CardContent>
                     <form onSubmit={handleSignIn} className="space-y-6">
                       <div className="space-y-2">
@@ -293,7 +305,7 @@ export default function Home() {
 
               {/* Sign Up Tab */}
               <TabsContent value="signup">
-                <Card className="shadow-2xl border-0 bg-white/90 backdrop-blur-sm">
+                <Card className="shadow-2xl border-0 bg-white/95 backdrop-blur-sm">
                   <CardHeader className="text-center">
                     <CardTitle className="text-2xl font-bold text-gray-800">Create Account</CardTitle>
                     <CardDescription className="text-gray-600">
@@ -410,6 +422,8 @@ export default function Home() {
                 </Card>
               </TabsContent>
             </Tabs>
+              </div>
+            </div>
           </div>
         </div>
       </div>

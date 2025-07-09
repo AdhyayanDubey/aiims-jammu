@@ -1,11 +1,9 @@
 "use client"
 
 // Import necessary libraries and components
-import { useEffect, useState, useRef } from "react"
-import toast, { Toaster } from "react-hot-toast"
-import { useSession } from "next-auth/react"
-import { useRouter } from "next/navigation"
-import { motion, useScroll, useTransform, AnimatePresence } from "framer-motion"
+import { useEffect, useState } from "react"
+import { Toaster } from "react-hot-toast"
+import { motion, useScroll, useTransform } from "framer-motion"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -13,10 +11,6 @@ import { Separator } from "@/components/ui/separator"
 import { Progress } from "@/components/ui/progress"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Input } from "@/components/ui/input"
-import { useForm } from "react-hook-form"
-import { zodResolver } from "@hookform/resolvers/zod"
-import * as z from "zod"
 import {
   Phone,
   Users,
@@ -30,23 +24,18 @@ import {
   UserCheck,
   Star,
   ChevronRight,
-  Play,
   ArrowRight,
   CheckCircle,
   TrendingUp,
   Activity,
   Zap,
   Globe,
-  Search,
-  Menu,
-  X,
-  Sun,
-  Moon,
   Bell,
 } from "lucide-react"
 import Image from "next/image";
 import Link from "next/link"
 import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from "@/components/ui/carousel"
+import Autoplay from "embla-carousel-autoplay"
 import {
   LineChart,
   Line,
@@ -59,23 +48,32 @@ import {
   Pie,
   Cell,
 } from "recharts"
-import { CountUp } from "use-count-up"
-import Autoplay from "embla-carousel-autoplay"
 
-// Form schemas
-const appointmentSchema = z.object({
-  firstName: z.string().min(2, "First name must be at least 2 characters"),
-  lastName: z.string().min(2, "Last name must be at least 2 characters"),
-  phone: z.string().min(10, "Phone number must be at least 10 digits"),
-  email: z.string().email("Invalid email address"),
-  department: z.string().min(1, "Please select a department"),
-  date: z.date({
-    required_error: "Please select a date",
-  }),
-  message: z.string().optional(),
-})
-
-type AppointmentForm = z.infer<typeof appointmentSchema>
+// CountUp component (simple implementation)
+function CountUp({ end, duration, isCounting }: { end: number; duration: number; isCounting: boolean }) {
+  const [count, setCount] = useState(0)
+  
+  useEffect(() => {
+    if (!isCounting) return
+    
+    let startTime: number
+    const animate = (currentTime: number) => {
+      if (!startTime) startTime = currentTime
+      const progress = (currentTime - startTime) / (duration * 1000)
+      
+      if (progress < 1) {
+        setCount(Math.floor(end * progress))
+        requestAnimationFrame(animate)
+      } else {
+        setCount(end)
+      }
+    }
+    
+    requestAnimationFrame(animate)
+  }, [end, duration, isCounting])
+  
+  return <span>{count}</span>
+}
 
 // Sample data for charts
 const patientData = [
@@ -96,52 +94,21 @@ const departmentData = [
 ]
 
 export default function AppointmentsPage() {
-  const [appointments, setAppointments] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
-  const [user, setUser] = useState<any>(null)
-  const prevAppointmentsRef = useRef<any[]>([]); // Make sure it's an array
-
-  const router = useRouter()
-
-  useEffect(() => {
-    const storedUser = localStorage.getItem("user")
-    if (storedUser) {
-      const parsed = JSON.parse(storedUser)
-      setUser(parsed)
-      if (parsed.role !== "USER") router.replace("/")
-    } else {
-      router.replace("/")
-    }
-  }, [router])
-
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
-  const [searchQuery, setSearchQuery] = useState("")
-  const [selectedDate, setSelectedDate] = useState<Date>()
+  const [user, setUser] = useState<{ role: string; email: string; name?: string } | null>(null)
   const [isDarkMode, setIsDarkMode] = useState(false)
 
   const { scrollY } = useScroll()
   const y1 = useTransform(scrollY, [0, 300], [0, 50])
   const y2 = useTransform(scrollY, [0, 300], [0, -50])
-  const opacity = useTransform(scrollY, [0, 300], [1, 0.8])
-
-  const {
-    register,
-    handleSubmit,
-    formState: { errors, isSubmitting },
-    setValue,
-    watch,
-  } = useForm<AppointmentForm>({
-    resolver: zodResolver(appointmentSchema),
-  })
 
   useEffect(() => {
     const timer = setTimeout(() => setLoading(false), 2000)
     return () => clearTimeout(timer)
   }, [])
 
-  // Add this after the existing useEffect
+  // Check for saved theme preference or default to light mode
   useEffect(() => {
-    // Check for saved theme preference or default to light mode
     const savedTheme = localStorage.getItem("theme")
     if (savedTheme === "dark") {
       setIsDarkMode(true)
@@ -149,70 +116,24 @@ export default function AppointmentsPage() {
     }
   }, [])
 
-  const toggleDarkMode = () => {
-    setIsDarkMode(!isDarkMode)
-    if (!isDarkMode) {
-      document.documentElement.classList.add("dark")
-      localStorage.setItem("theme", "dark")
-    } else {
-      document.documentElement.classList.remove("dark")
-      localStorage.setItem("theme", "light")
-    }
-  }
-
-  const onSubmit = async (data: any) => {
-    await fetch("/api/appointments", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data),
-    })
-    toast.success("Appointment booked!")
-  }
-
+  // Check for user authentication
   useEffect(() => {
     const storedUser = localStorage.getItem("user")
     if (storedUser) {
       const parsed = JSON.parse(storedUser)
       setUser(parsed)
-
-      const fetchAppointments = () => {
-        fetch(`/api/user/appointments?email=${encodeURIComponent(parsed.email)}`)
-          .then(res => res.json())
-          .then(data => {
-            // Use the previous appointments for notification
-            const prevAppointments = Array.isArray(prevAppointmentsRef.current) ? prevAppointmentsRef.current : [];
-            const newAppointments = Array.isArray(data.appointments) ? data.appointments : [];
-
-            // Notification for status change
-            prevAppointments.forEach((prev) => {
-              const updated = newAppointments.find((a: any) => a.id === prev.id);
-              if (updated && updated.status !== prev.status) {
-                toast.success(`Appointment #${prev.id} status changed to ${updated.status}`);
-              }
-            });
-
-            // Update the ref and state with the new data
-            prevAppointmentsRef.current = newAppointments;
-            setAppointments(newAppointments);
-            setLoading(false);
-          })
-      }
-
-      fetchAppointments()
-      const interval = setInterval(fetchAppointments, 5000)
-      return () => clearInterval(interval)
     }
   }, [])
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-white dark:bg-gray-900">
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-indigo-900">
         <div className="container mx-auto px-4 py-8">
-          <Skeleton className="h-16 w-full mb-8" />
-          <Skeleton className="h-96 w-full mb-8" />
+          <Skeleton className="h-16 w-full mb-8 bg-white/10 border border-white/20" />
+          <Skeleton className="h-96 w-full mb-8 bg-white/10 border border-white/20" />
           <div className="grid md:grid-cols-3 gap-6">
             {[...Array(6)].map((_, i) => (
-              <Skeleton key={i} className="h-64 w-full" />
+              <Skeleton key={i} className="h-64 w-full bg-white/10 border border-white/20" />
             ))}
           </div>
         </div>
@@ -221,10 +142,10 @@ export default function AppointmentsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-white dark:bg-gray-900 transition-colors duration-300">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-indigo-900 transition-colors duration-300">
       <Toaster />
       {/* Enhanced Header with Glass Effect */}
-      <header className="w-full px-6 py-3 flex items-center justify-between bg-[#101828] shadow-sm border-b border-gray-800 z-50">
+      <header className="w-full px-6 py-3 flex items-center justify-between bg-white/10 backdrop-blur-md shadow-lg border-b border-white/20 z-50">
   {/* Logo and Title */}
   <div className="flex items-center space-x-3">
     <Image
@@ -232,11 +153,11 @@ export default function AppointmentsPage() {
       alt="AIIMS Jammu Logo"
       width={44}
       height={44}
-      className="rounded-full border border-gray-700"
+      className="rounded-full border border-white/30 shadow-lg"
     />
     <div className="flex flex-col leading-tight">
-      <span className="text-lg font-bold text-white">AIIMS Jammu</span>
-      <span className="text-xs text-gray-400 font-medium">All India Institute of Medical Sciences</span>
+      <span className="text-lg font-bold text-white drop-shadow-lg">AIIMS Jammu</span>
+      <span className="text-xs text-white/80 font-medium drop-shadow-md">All India Institute of Medical Sciences</span>
     </div>
   </div>
 
@@ -246,7 +167,7 @@ export default function AppointmentsPage() {
       <a
         key={item}
         href={`#${item.toLowerCase()}`}
-        className="text-base text-gray-200 hover:text-blue-400 font-medium transition-colors"
+        className="text-base text-white/90 hover:text-blue-300 font-medium transition-colors drop-shadow-md"
       >
         {item}
       </a>
@@ -256,17 +177,17 @@ export default function AppointmentsPage() {
   {/* Action Buttons */}
   <div className="flex items-center space-x-3">
     <Link href="/book-appointment">
-      <button className="px-4 py-2 text-sm bg-blue-700 hover:bg-blue-800 text-white rounded-lg font-semibold transition-colors shadow">
+      <button className="px-4 py-2 text-sm bg-white/20 hover:bg-white/30 text-white rounded-lg font-semibold transition-colors shadow-lg backdrop-blur-sm border border-white/30">
         Book Appointment
       </button>
     </Link>
     <Link href="/my-appointments">
-      <button className="px-4 py-2 text-sm bg-blue-700 hover:bg-blue-800 text-white rounded-lg font-semibold transition-colors shadow">
+      <button className="px-4 py-2 text-sm bg-blue-600/80 hover:bg-blue-700/80 text-white rounded-lg font-semibold transition-colors shadow-lg backdrop-blur-sm">
         My Appointments
       </button>
     </Link>
     <button
-      className="px-4 py-2 text-sm bg-gray-900 hover:bg-gray-800 text-white rounded-lg font-semibold border border-gray-700 transition-colors shadow"
+      className="px-4 py-2 text-sm bg-red-600/80 hover:bg-red-700/80 text-white rounded-lg font-semibold border border-red-500/50 transition-colors shadow-lg backdrop-blur-sm"
       onClick={() => {
         localStorage.removeItem("user");
         window.location.href = "/"; // Redirect to main page (signin/register)
@@ -277,15 +198,12 @@ export default function AppointmentsPage() {
   </div>
 </header>
 
-{/* Add a clear separation */}
-<div className="h-1 bg-transparent"></div>
-
 {/* Emergency Banner (keep only this one) */}
 <motion.div
   initial={{ y: -40, opacity: 0 }}
   animate={{ y: 0, opacity: 1 }}
   transition={{ type: "spring", stiffness: 120, damping: 12 }}
-  className="w-full py-1 px-4 bg-red-700 flex items-center justify-center text-[13px] font-semibold text-white shadow-sm border-b border-red-800 relative z-10"
+  className="w-full py-1 px-4 bg-red-600/90 backdrop-blur-sm flex items-center justify-center text-[13px] font-semibold text-white shadow-lg border-b border-red-500/50 relative z-10"
 >
   <span className="flex items-center">
     {/* Animated Emergency Icon */}
@@ -313,25 +231,25 @@ export default function AppointmentsPage() {
       {/* Enhanced Hero Section with Parallax */}
       <section
         id="home"
-        className="relative bg-gradient-to-br from-blue-50 via-white to-green-50 dark:from-blue-950 dark:via-gray-900 dark:to-green-950 py-20 overflow-hidden"
+        className="relative bg-white/5 backdrop-blur-sm py-20 overflow-hidden border-b border-white/10"
       >
-        <motion.div className="absolute inset-0 opacity-10" style={{ y: y1 }}>
-          <div className="absolute top-20 left-20 w-72 h-72 bg-blue-200 dark:bg-blue-800 rounded-full blur-3xl" />
-          <div className="absolute bottom-20 right-20 w-96 h-96 bg-green-200 dark:bg-green-800 rounded-full blur-3xl" />
+        <motion.div className="absolute inset-0 opacity-20" style={{ y: y1 }}>
+          <div className="absolute top-20 left-20 w-72 h-72 bg-blue-400/30 rounded-full blur-3xl" />
+          <div className="absolute bottom-20 right-20 w-96 h-96 bg-indigo-400/30 rounded-full blur-3xl" />
         </motion.div>
 
         <div className="container mx-auto px-4 relative z-10">
           <div className="grid lg:grid-cols-2 gap-12 items-center">
             <motion.div initial={{ opacity: 0, x: -50 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.8 }}>
               <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
-                <Badge className="mb-6 bg-gradient-to-r from-blue-600 to-green-600 text-white px-4 py-2">
+                <Badge className="mb-6 bg-white/20 backdrop-blur-sm text-white px-4 py-2 border border-white/30 shadow-lg">
                   <Award className="w-4 h-4 mr-2" />
                   Premier Healthcare Institution
                 </Badge>
               </motion.div>
 
               <motion.h1
-                className="text-4xl lg:text-6xl font-bold text-gray-900 dark:text-white mb-6 leading-tight"
+                className="text-4xl lg:text-6xl font-bold text-white mb-6 leading-tight drop-shadow-2xl"
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.4 }}
@@ -347,7 +265,7 @@ export default function AppointmentsPage() {
               </motion.h1>
 
               <motion.p
-                className="text-xl text-gray-600 dark:text-gray-300 mb-8 leading-relaxed"
+                className="text-xl text-white/90 mb-8 leading-relaxed drop-shadow-lg"
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.6 }}
@@ -376,12 +294,6 @@ export default function AppointmentsPage() {
     </motion.div>
   </Link>
 )}
-                <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-                  <Button variant="outline" size="lg" className="border-2 hover:bg-gray-50 dark:hover:bg-gray-800">
-                    <Play className="w-5 h-5 mr-2" />
-                    Virtual Tour
-                  </Button>
-                </motion.div>
               </motion.div>
 
               {/* Animated Statistics */}
@@ -401,7 +313,7 @@ export default function AppointmentsPage() {
                       <CountUp isCounting end={stat.value} duration={2} />
                       {stat.suffix}
                     </div>
-                    <div className="text-sm text-gray-600 dark:text-gray-400 font-medium">{stat.label}</div>
+                    <div className="text-sm text-white/80 font-medium">{stat.label}</div>
                   </motion.div>
                 ))}
               </motion.div>
@@ -435,7 +347,7 @@ export default function AppointmentsPage() {
 
                 {/* Floating Cards - highest z-index */}
                 <motion.div
-                  className="absolute -bottom-8 -left-8 bg-white dark:bg-gray-800 p-6 rounded-xl shadow-xl border dark:border-gray-700"
+                  className="absolute -bottom-8 -left-8 bg-white/20 backdrop-blur-lg border border-white/30 p-6 rounded-xl shadow-2xl"
                   initial={{ opacity: 0, y: 50 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 1.2 }}
@@ -447,14 +359,14 @@ export default function AppointmentsPage() {
                       <Heart className="w-6 h-6 text-green-600 dark:text-green-400" />
                     </div>
                     <div>
-                      <div className="font-semibold text-gray-900 dark:text-white">Trusted Care</div>
-                      <div className="text-sm text-gray-600 dark:text-gray-400">Since 2024</div>
+                      <div className="font-semibold text-white drop-shadow-md">Trusted Care</div>
+                      <div className="text-sm text-white/90 drop-shadow-md">Since 2024</div>
                     </div>
                   </div>
                 </motion.div>
 
                 <motion.div
-                  className="absolute -top-8 -right-8 bg-white dark:bg-gray-800 p-4 rounded-xl shadow-xl border dark:border-gray-700"
+                  className="absolute -top-8 -right-8 bg-white/20 backdrop-blur-lg border border-white/30 p-4 rounded-xl shadow-2xl"
                   initial={{ opacity: 0, y: -50 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 1.4 }}
@@ -467,10 +379,93 @@ export default function AppointmentsPage() {
                         <Star key={i} className="w-4 h-4 fill-yellow-400 text-yellow-400" />
                       ))}
                     </div>
-                    <span className="text-sm font-medium dark:text-white">4.9/5 Rating</span>
+                    <span className="text-sm font-medium text-white drop-shadow-md">4.9/5 Rating</span>
                   </div>
                 </motion.div>
               </div>
+            </motion.div>
+          </div>
+        </div>
+      </section>
+
+      {/* Enhanced Statistics Section with Charts */}
+      <section className="py-20 bg-white/5 backdrop-blur-sm border-y border-white/10">
+        <div className="container mx-auto px-4">
+          <motion.div
+            className="text-center mb-16"
+            initial={{ opacity: 0, y: 30 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+          >
+            <Badge className="mb-4 bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300">Our Impact</Badge>
+            <h2 className="text-4xl font-bold text-white mb-6 drop-shadow-lg">Healthcare Excellence in Numbers</h2>
+          </motion.div>
+
+          <div className="grid lg:grid-cols-2 gap-12">
+            <motion.div initial={{ opacity: 0, x: -30 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }}>
+              <Card className="bg-white/10 backdrop-blur-md border border-white/20 shadow-xl">
+                <CardHeader>
+                  <CardTitle className="flex items-center text-white">
+                    <TrendingUp className="w-5 h-5 mr-2 text-blue-400" />
+                    Patient Growth & Satisfaction
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <ResponsiveContainer width="100%" height={300}>
+                    <LineChart data={patientData}>
+                      <CartesianGrid strokeDasharray="3 3" stroke={isDarkMode ? "#374151" : "#e5e7eb"} />
+                      <XAxis dataKey="month" stroke={isDarkMode ? "#d1d5db" : "#6b7280"} />
+                      <YAxis stroke={isDarkMode ? "#d1d5db" : "#6b7280"} />
+                      <Tooltip
+                        contentStyle={{
+                          backgroundColor: isDarkMode ? "#1f2937" : "#ffffff",
+                          borderColor: isDarkMode ? "#374151" : "#e5e7eb",
+                          color: isDarkMode ? "#f9fafb" : "#111827",
+                        }}
+                      />
+                      <Line type="monotone" dataKey="patients" stroke="#3B82F6" strokeWidth={3} />
+                      <Line type="monotone" dataKey="satisfaction" stroke="#10B981" strokeWidth={3} />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </CardContent>
+              </Card>
+            </motion.div>
+
+            <motion.div initial={{ opacity: 0, x: 30 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }}>
+              <Card className="bg-white/10 backdrop-blur-md border border-white/20 shadow-xl">
+                <CardHeader>
+                  <CardTitle className="flex items-center text-white">
+                    <Activity className="w-5 h-5 mr-2 text-green-400" />
+                    Department Distribution
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <ResponsiveContainer width="100%" height={300}>
+                    <PieChart>
+                      <Pie
+                        data={departmentData}
+                        cx="50%"
+                        cy="50%"
+                        outerRadius={100}
+                        fill="#8884d8"
+                        dataKey="value"
+                        label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                      >
+                        {departmentData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.color} />
+                        ))}
+                      </Pie>
+                      <Tooltip
+                        contentStyle={{
+                          backgroundColor: isDarkMode ? "#1f2937" : "#ffffff",
+                          borderColor: isDarkMode ? "#374151" : "#e5e7eb",
+                          color: isDarkMode ? "#f9fafb" : "#111827",
+                        }}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </CardContent>
+              </Card>
             </motion.div>
           </div>
         </div>
@@ -480,7 +475,7 @@ export default function AppointmentsPage() {
       {/* I'll keep the rest of the content as it was to maintain the existing functionality */}
 
       {/* Enhanced Services Section with Tabs */}
-      <section id="services" className="py-20 bg-white dark:bg-gray-900">
+      <section id="services" className="py-20 bg-white/5 backdrop-blur-sm border-y border-white/10">
         <div className="container mx-auto px-4">
           <motion.div
             className="text-center mb-16"
@@ -489,8 +484,8 @@ export default function AppointmentsPage() {
             viewport={{ once: true }}
           >
             <Badge className="mb-4 bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300">Our Services</Badge>
-            <h2 className="text-4xl font-bold text-gray-900 dark:text-white mb-6">Comprehensive Medical Services</h2>
-            <p className="text-xl text-gray-600 dark:text-gray-300 max-w-3xl mx-auto">
+            <h2 className="text-4xl font-bold text-white mb-6 drop-shadow-lg">Comprehensive Medical Services</h2>
+            <p className="text-xl text-white/90 max-w-3xl mx-auto drop-shadow-md">
               State-of-the-art facilities and expert medical professionals providing world-class healthcare services
             </p>
           </motion.div>
@@ -540,7 +535,7 @@ export default function AppointmentsPage() {
                     transition={{ delay: index * 0.1 }}
                     whileHover={{ scale: 1.05 }}
                   >
-                    <Card className="h-full hover:shadow-xl transition-all duration-300 border-l-4 border-l-red-500 dark:bg-gray-800 dark:border-l-red-600">
+                    <Card className="h-full hover:shadow-2xl transition-all duration-300 border-l-4 border-l-red-400 bg-white/10 backdrop-blur-md border border-white/20 shadow-xl">
                       <CardHeader>
                         <div
                           className={`w-12 h-12 bg-${service.color}-100 dark:bg-${service.color}-900 rounded-full flex items-center justify-center mb-4`}
@@ -549,10 +544,10 @@ export default function AppointmentsPage() {
                             className={`w-6 h-6 text-${service.color}-600 dark:text-${service.color}-400`}
                           />
                         </div>
-                        <CardTitle className="text-xl dark:text-white">{service.title}</CardTitle>
+                        <CardTitle className="text-xl text-white">{service.title}</CardTitle>
                       </CardHeader>
                       <CardContent>
-                        <p className="text-gray-600 dark:text-gray-300 mb-4">{service.desc}</p>
+                        <p className="text-white/80 mb-4">{service.desc}</p>
                         <Button variant="link" className="p-0 text-red-600 dark:text-red-400">
                           Learn More <ChevronRight className="w-4 h-4 ml-1" />
                         </Button>
@@ -584,19 +579,19 @@ export default function AppointmentsPage() {
                     transition={{ delay: index * 0.1 }}
                     whileHover={{ y: -10 }}
                   >
-                    <Card className="text-center hover:shadow-lg transition-all duration-300 dark:bg-gray-800">
+                    <Card className="text-center hover:shadow-2xl transition-all duration-300 bg-white/10 backdrop-blur-md border border-white/20 shadow-xl">
                       <CardHeader>
                         <div className="w-16 h-16 bg-blue-100 dark:bg-blue-900 rounded-full flex items-center justify-center mx-auto mb-4">
                           <service.icon className="w-8 h-8 text-blue-600 dark:text-blue-400" />
                         </div>
-                        <CardTitle className="text-lg dark:text-white">{service.title}</CardTitle>
+                        <CardTitle className="text-lg text-white">{service.title}</CardTitle>
                       </CardHeader>
                       <CardContent>
-                        <p className="text-gray-600 dark:text-gray-300 mb-4">{service.desc}</p>
+                        <p className="text-white/80 mb-4">{service.desc}</p>
                         <div className="text-2xl font-bold text-blue-600 dark:text-blue-400 mb-2">
                           {service.patients}
                         </div>
-                        <p className="text-sm text-gray-500 dark:text-gray-400">Patients Treated</p>
+                        <p className="text-sm text-white/80">Patients Treated</p>
                       </CardContent>
                     </Card>
                   </motion.div>
@@ -611,10 +606,10 @@ export default function AppointmentsPage() {
                   whileInView={{ opacity: 1, x: 0 }}
                   viewport={{ once: true }}
                 >
-                  <Card className="h-full dark:bg-gray-800">
+                  <Card className="h-full bg-white/10 backdrop-blur-md border border-white/20 shadow-xl">
                     <CardHeader>
-                      <CardTitle className="text-2xl dark:text-white">Advanced Diagnostics</CardTitle>
-                      <CardDescription className="dark:text-gray-300">
+                      <CardTitle className="text-2xl text-white">Advanced Diagnostics</CardTitle>
+                      <CardDescription className="text-white/80">
                         State-of-the-art diagnostic equipment
                       </CardDescription>
                     </CardHeader>
@@ -629,7 +624,7 @@ export default function AppointmentsPage() {
                           <div key={index}>
                             <div className="flex justify-between mb-2">
                               <span className="text-sm font-medium dark:text-white">{item.name}</span>
-                              <span className="text-sm text-gray-500 dark:text-gray-400">{item.progress}%</span>
+                              <span className="text-sm text-white/80">{item.progress}%</span>
                             </div>
                             <Progress value={item.progress} className="h-2" />
                           </div>
@@ -643,10 +638,10 @@ export default function AppointmentsPage() {
                   whileInView={{ opacity: 1, x: 0 }}
                   viewport={{ once: true }}
                 >
-                  <Card className="h-full dark:bg-gray-800">
+                  <Card className="h-full bg-white/10 backdrop-blur-md border border-white/20 shadow-xl">
                     <CardHeader>
-                      <CardTitle className="text-2xl dark:text-white">Laboratory Services</CardTitle>
-                      <CardDescription className="dark:text-gray-300">Comprehensive lab testing</CardDescription>
+                      <CardTitle className="text-2xl text-white">Laboratory Services</CardTitle>
+                      <CardDescription className="text-white/80">Comprehensive lab testing</CardDescription>
                     </CardHeader>
                     <CardContent>
                       <div className="grid grid-cols-2 gap-4">
@@ -660,7 +655,7 @@ export default function AppointmentsPage() {
                         ].map((test, index) => (
                           <motion.div
                             key={index}
-                            className="flex items-center space-x-2 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg"
+                            className="flex items-center space-x-2 p-3 bg-white/10 backdrop-blur-sm rounded-lg border border-white/20"
                             whileHover={{ scale: 1.05 }}
                           >
                             <CheckCircle className="w-5 h-5 text-green-600 dark:text-green-400" />
@@ -681,10 +676,10 @@ export default function AppointmentsPage() {
                   whileInView={{ opacity: 1, scale: 1 }}
                   viewport={{ once: true }}
                 >
-                  <Card className="max-w-2xl mx-auto dark:bg-gray-800">
+                  <Card className="max-w-2xl mx-auto bg-white/10 backdrop-blur-md border border-white/20 shadow-xl">
                     <CardHeader>
-                      <CardTitle className="text-2xl dark:text-white">Wellness Programs</CardTitle>
-                      <CardDescription className="dark:text-gray-300">
+                      <CardTitle className="text-2xl text-white">Wellness Programs</CardTitle>
+                      <CardDescription className="text-white/80">
                         Preventive healthcare and wellness initiatives
                       </CardDescription>
                     </CardHeader>
@@ -701,8 +696,8 @@ export default function AppointmentsPage() {
                             className="text-left p-4 bg-gradient-to-br from-blue-50 to-green-50 dark:from-blue-900/30 dark:to-green-900/30 rounded-lg"
                             whileHover={{ scale: 1.05 }}
                           >
-                            <h4 className="font-semibold text-gray-900 dark:text-white mb-2">{program.title}</h4>
-                            <p className="text-gray-600 dark:text-gray-300 text-sm">{program.desc}</p>
+                            <h4 className="font-semibold text-white mb-2">{program.title}</h4>
+                            <p className="text-white/80 text-sm">{program.desc}</p>
                           </motion.div>
                         ))}
                       </div>
@@ -715,91 +710,8 @@ export default function AppointmentsPage() {
         </div>
       </section>
 
-      {/* Enhanced Statistics Section with Charts */}
-      <section className="py-20 bg-gradient-to-br from-blue-50 to-green-50 dark:from-blue-950 dark:to-green-950">
-        <div className="container mx-auto px-4">
-          <motion.div
-            className="text-center mb-16"
-            initial={{ opacity: 0, y: 30 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-          >
-            <Badge className="mb-4 bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300">Our Impact</Badge>
-            <h2 className="text-4xl font-bold text-gray-900 dark:text-white mb-6">Healthcare Excellence in Numbers</h2>
-          </motion.div>
-
-          <div className="grid lg:grid-cols-2 gap-12">
-            <motion.div initial={{ opacity: 0, x: -30 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }}>
-              <Card className="dark:bg-gray-800">
-                <CardHeader>
-                  <CardTitle className="flex items-center dark:text-white">
-                    <TrendingUp className="w-5 h-5 mr-2 text-blue-600 dark:text-blue-400" />
-                    Patient Growth & Satisfaction
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <ResponsiveContainer width="100%" height={300}>
-                    <LineChart data={patientData}>
-                      <CartesianGrid strokeDasharray="3 3" stroke={isDarkMode ? "#374151" : "#e5e7eb"} />
-                      <XAxis dataKey="month" stroke={isDarkMode ? "#d1d5db" : "#6b7280"} />
-                      <YAxis stroke={isDarkMode ? "#d1d5db" : "#6b7280"} />
-                      <Tooltip
-                        contentStyle={{
-                          backgroundColor: isDarkMode ? "#1f2937" : "#ffffff",
-                          borderColor: isDarkMode ? "#374151" : "#e5e7eb",
-                          color: isDarkMode ? "#f9fafb" : "#111827",
-                        }}
-                      />
-                      <Line type="monotone" dataKey="patients" stroke="#3B82F6" strokeWidth={3} />
-                      <Line type="monotone" dataKey="satisfaction" stroke="#10B981" strokeWidth={3} />
-                    </LineChart>
-                  </ResponsiveContainer>
-                </CardContent>
-              </Card>
-            </motion.div>
-
-            <motion.div initial={{ opacity: 0, x: 30 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }}>
-              <Card className="dark:bg-gray-800">
-                <CardHeader>
-                  <CardTitle className="flex items-center dark:text-white">
-                    <Activity className="w-5 h-5 mr-2 text-green-600 dark:text-green-400" />
-                    Department Distribution
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <ResponsiveContainer width="100%" height={300}>
-                    <PieChart>
-                      <Pie
-                        data={departmentData}
-                        cx="50%"
-                        cy="50%"
-                        outerRadius={100}
-                        fill="#8884d8"
-                        dataKey="value"
-                        label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                      >
-                        {departmentData.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={entry.color} />
-                        ))}
-                      </Pie>
-                      <Tooltip
-                        contentStyle={{
-                          backgroundColor: isDarkMode ? "#1f2937" : "#ffffff",
-                          borderColor: isDarkMode ? "#374151" : "#e5e7eb",
-                          color: isDarkMode ? "#f9fafb" : "#111827",
-                        }}
-                      />
-                    </PieChart>
-                  </ResponsiveContainer>
-                </CardContent>
-              </Card>
-            </motion.div>
-          </div>
-        </div>
-      </section>
-
       {/* News & Announcements Section */}
-      <section className="py-20 bg-white dark:bg-gray-900">
+      <section className="py-20 bg-white/5 backdrop-blur-sm border-y border-white/10">
         <div className="container mx-auto px-4">
           <motion.div
             className="text-center mb-16"
@@ -811,8 +723,8 @@ export default function AppointmentsPage() {
               <Bell className="w-4 h-4 mr-2" />
               Latest Updates
             </Badge>
-            <h2 className="text-4xl font-bold text-gray-900 dark:text-white mb-6">News & Announcements</h2>
-            <p className="text-xl text-gray-600 dark:text-gray-300 max-w-2xl mx-auto">
+            <h2 className="text-4xl font-bold text-white mb-6 drop-shadow-lg">News & Announcements</h2>
+            <p className="text-xl text-white/80 max-w-2xl mx-auto">
               Stay updated with the latest news, medical breakthroughs, and important announcements from AIIMS Jammu
             </p>
           </motion.div>
@@ -855,7 +767,7 @@ export default function AppointmentsPage() {
                 transition={{ delay: index * 0.1 }}
                 whileHover={{ scale: 1.02 }}
               >
-                <Card className="h-full hover:shadow-xl transition-all duration-300 dark:bg-gray-800 dark:border-gray-700">
+                <Card className="h-full hover:shadow-xl transition-all duration-300 bg-white/10 backdrop-blur-md border border-white/20 shadow-xl">
                   <div className="relative">
                     <Image
                       src={news.image || "/placeholder.svg"}
@@ -869,12 +781,12 @@ export default function AppointmentsPage() {
                   </div>
                   <CardHeader>
                     <div className="flex items-center justify-between mb-2">
-                      <span className="text-sm text-gray-500 dark:text-gray-400">{news.date}</span>
+                      <span className="text-sm text-white/80">{news.date}</span>
                     </div>
-                    <CardTitle className="text-lg dark:text-white">{news.title}</CardTitle>
+                    <CardTitle className="text-lg text-white">{news.title}</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <p className="text-gray-600 dark:text-gray-300 mb-4">{news.excerpt}</p>
+                    <p className="text-white/80 mb-4">{news.excerpt}</p>
                     <Button variant="link" className="p-0 text-blue-600 dark:text-blue-400">
                       Read More <ChevronRight className="w-4 h-4 ml-1" />
                     </Button>
@@ -899,7 +811,7 @@ export default function AppointmentsPage() {
       </section>
 
       {/* Enhanced Doctors Section with Carousel */}
-      <section id="doctors" className="py-20 bg-white dark:bg-gray-900">
+      <section id="doctors" className="py-20 bg-white/5 backdrop-blur-sm border-y border-white/10">
         <div className="container mx-auto px-4">
           <motion.div
             className="text-center mb-16"
@@ -910,8 +822,8 @@ export default function AppointmentsPage() {
             <Badge className="mb-4 bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-300">
               Our Team
             </Badge>
-            <h2 className="text-4xl font-bold text-gray-900 dark:text-white mb-6">Meet Our Expert Doctors</h2>
-            <p className="text-xl text-gray-600 dark:text-gray-300 max-w-2xl mx-auto">
+            <h2 className="text-4xl font-bold text-white mb-6 drop-shadow-lg">Meet Our Expert Doctors</h2>
+            <p className="text-xl text-white/80 max-w-2xl mx-auto">
               Experienced medical professionals dedicated to providing exceptional healthcare
             </p>
           </motion.div>
@@ -965,7 +877,7 @@ export default function AppointmentsPage() {
               ].map((doctor, index) => (
                 <CarouselItem key={index} className="md:basis-1/2 lg:basis-1/3">
                   <motion.div whileHover={{ scale: 1.05 }} transition={{ type: "spring", stiffness: 300 }}>
-                    <Card className="h-full hover:shadow-xl transition-all duration-300 dark:bg-gray-800">
+                    <Card className="h-full hover:shadow-xl transition-all duration-300 bg-white/10 backdrop-blur-md border border-white/20 shadow-xl">
                       <CardHeader className="text-center">
                         <div className="relative mx-auto mb-4">
                           <Image
@@ -983,7 +895,7 @@ export default function AppointmentsPage() {
                             <CheckCircle className="w-5 h-5 text-white" />
                           </motion.div>
                         </div>
-                        <CardTitle className="text-xl dark:text-white">{doctor.name}</CardTitle>
+                        <CardTitle className="text-xl text-white">{doctor.name}</CardTitle>
                         <CardDescription className="text-blue-600 dark:text-blue-400 font-medium">
                           {doctor.specialty}
                         </CardDescription>
@@ -993,16 +905,16 @@ export default function AppointmentsPage() {
                           {[...Array(5)].map((_, i) => (
                             <Star
                               key={i}
-                              className={`w-4 h-4 ${i < Math.floor(doctor.rating) ? "fill-yellow-400 text-yellow-400" : "text-gray-300 dark:text-gray-600"}`}
+                              className={`w-4 h-4 ${i < Math.floor(doctor.rating) ? "fill-yellow-400 text-yellow-400" : "text-white/40"}`}
                             />
                           ))}
-                          <span className="ml-2 text-sm text-gray-600 dark:text-gray-400">({doctor.rating})</span>
+                          <span className="ml-2 text-sm text-white/70">({doctor.rating})</span>
                         </div>
                         <div className="space-y-2 mb-6">
-                          <p className="text-sm text-gray-600 dark:text-gray-300">
+                          <p className="text-sm text-white/80">
                             <strong>Experience:</strong> {doctor.experience}
                           </p>
-                          <p className="text-sm text-gray-600 dark:text-gray-300">
+                          <p className="text-sm text-white/80">
                             <strong>Education:</strong> {doctor.education}
                           </p>
                           <p className="text-sm text-blue-600 dark:text-blue-400 font-medium">{doctor.achievements}</p>
@@ -1035,7 +947,7 @@ export default function AppointmentsPage() {
             viewport={{ once: true }}
           >
             <Badge className="mb-4 bg-white/20 text-white">Why Choose Us</Badge>
-            <h2 className="text-4xl font-bold mb-6">Excellence That Sets Us Apart</h2>
+            <h2 className="text-4xl font-bold text-white mb-6 drop-shadow-lg">Excellence That Sets Us Apart</h2>
             <p className="text-xl text-blue-100 max-w-2xl mx-auto">
               Discover what makes AIIMS Jammu the preferred choice for healthcare
             </p>
@@ -1093,7 +1005,7 @@ export default function AppointmentsPage() {
       </section>
 
       {/* Enhanced Contact Section */}
-      <section id="contact" className="py-20 bg-gray-50 dark:bg-gray-800">
+      <section id="contact" className="py-20 bg-white/5 backdrop-blur-sm border-y border-white/10">
         <div className="container mx-auto px-4">
           <motion.div
             className="text-center mb-16"
@@ -1102,8 +1014,8 @@ export default function AppointmentsPage() {
             viewport={{ once: true }}
           >
             <Badge className="mb-4 bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300">Get In Touch</Badge>
-            <h2 className="text-4xl font-bold text-gray-900 dark:text-white mb-6">Contact Us</h2>
-            <p className="text-xl text-gray-600 dark:text-gray-300 max-w-2xl mx-auto">
+            <h2 className="text-4xl font-bold text-white mb-6 drop-shadow-lg">Contact Us</h2>
+            <p className="text-xl text-white/80 max-w-2xl mx-auto">
               Ready to experience world-class healthcare? Get in touch with us today
             </p>
           </motion.div>
@@ -1116,10 +1028,10 @@ export default function AppointmentsPage() {
               whileInView={{ opacity: 1, x: 0 }}
               viewport={{ once: true }}
             >
-              <Card className="h-full dark:bg-gray-900">
+              <Card className="h-full bg-white/10 backdrop-blur-md border border-white/20 shadow-xl">
                 <CardHeader>
-                  <CardTitle className="flex items-center dark:text-white">
-                    <Phone className="w-5 h-5 mr-2 text-blue-600 dark:text-blue-400" />
+                  <CardTitle className="flex items-center text-white">
+                    <Phone className="w-5 h-5 mr-2 text-blue-400" />
                     Contact Information
                   </CardTitle>
                 </CardHeader>
@@ -1152,17 +1064,17 @@ export default function AppointmentsPage() {
                   ].map((item, index) => (
                     <motion.div
                       key={index}
-                      className="flex items-start space-x-4 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg"
+                      className="flex items-start space-x-4 p-4 bg-white/10 backdrop-blur-sm rounded-lg border border-white/20"
                       whileHover={{ scale: 1.02 }}
                     >
                       <div
-                        className={`w-10 h-10 bg-white dark:bg-gray-700 rounded-full flex items-center justify-center shadow-sm`}
+                        className={`w-10 h-10 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center shadow-sm border border-white/30`}
                       >
                         <item.icon className={`w-5 h-5 ${item.color}`} />
                       </div>
                       <div>
-                        <p className="font-semibold text-gray-900 dark:text-white">{item.title}</p>
-                        <p className="text-gray-600 dark:text-gray-300">{item.content}</p>
+                        <p className="font-semibold text-white">{item.title}</p>
+                        <p className="text-white/80">{item.content}</p>
                       </div>
                     </motion.div>
                   ))}
@@ -1177,23 +1089,23 @@ export default function AppointmentsPage() {
               whileInView={{ opacity: 1, x: 0 }}
               viewport={{ once: true }}
             >
-              <Card className="dark:bg-gray-900">
+              <Card className="bg-white/10 backdrop-blur-md border border-white/20 shadow-xl">
                 <CardHeader>
-                  <CardTitle className="flex items-center dark:text-white">
-                    <CalendarLucide className="w-5 h-5 mr-2 text-blue-600 dark:text-blue-400" />
+                  <CardTitle className="flex items-center text-white">
+                    <CalendarLucide className="w-5 h-5 mr-2 text-blue-400" />
                     Quick Appointment Booking
                   </CardTitle>
-                  <CardDescription className="dark:text-gray-300">
-                    Fill out the form below and we'll get back to you within 24 hours
+                  <CardDescription className="text-white/80">
+                    Fill out the form below and we&apos;ll get back to you within 24 hours
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
                   <div className="text-center py-8">
                     <CalendarLucide className="w-16 h-16 text-blue-600 dark:text-blue-400 mx-auto mb-4" />
-                    <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
+                    <h3 className="text-xl font-semibold text-white mb-2">
                       Book Your Appointment Online
                     </h3>
-                    <p className="text-gray-600 dark:text-gray-300 mb-6">
+                    <p className="text-white/80 mb-6">
                       Use our dedicated appointment booking page for a better experience
                     </p>
                     <Link href="/book-appointment">
@@ -1236,14 +1148,14 @@ export default function AppointmentsPage() {
                 </div>
                 <div>
                   <h3 className="text-xl font-bold">AIIMS Jammu</h3>
-                  <p className="text-sm text-gray-400">Excellence in Healthcare</p>
+                  <p className="text-sm text-white/80">Excellence in Healthcare</p>
                 </div>
               </div>
-              <p className="text-gray-400 leading-relaxed mb-6">
+              <p className="text-white/80 leading-relaxed mb-6">
                 Providing world-class medical care and education in the beautiful region of Jammu & Kashmir.
               </p>
               <div className="flex space-x-4">
-                {["facebook", "twitter", "instagram", "linkedin"].map((social, index) => (
+                {["facebook", "twitter", "instagram", "linkedin"].map((social) => (
                   <motion.div
                     key={social}
                     whileHover={{ scale: 1.2, rotate: 5 }}
@@ -1282,7 +1194,7 @@ export default function AppointmentsPage() {
                     <li key={linkIndex}>
                       <Link
                         href="#"
-                        className="text-gray-400 hover:text-white transition-colors flex items-center group"
+                        className="text-white/80 hover:text-white transition-colors flex items-center group"
                       >
                         <ChevronRight className="w-4 h-4 mr-2 opacity-0 group-hover:opacity-100 transition-opacity" />
                         {link}
@@ -1298,7 +1210,7 @@ export default function AppointmentsPage() {
 
           <div className="flex flex-col md:flex-row justify-between items-center">
             <motion.p
-              className="text-gray-400 text-sm mb-4 md:mb-0"
+              className="text-white/80 text-sm mb-4 md:mb-0"
               initial={{ opacity: 0 }}
               whileInView={{ opacity: 1 }}
               viewport={{ once: true }}
@@ -1311,13 +1223,13 @@ export default function AppointmentsPage() {
               whileInView={{ opacity: 1 }}
               viewport={{ once: true }}
             >
-              <Link href="#" className="text-gray-400 hover:text-white transition-colors">
+              <Link href="#" className="text-white/80 hover:text-white transition-colors">
                 Privacy Policy
               </Link>
-              <Link href="#" className="text-gray-400 hover:text-white transition-colors">
+              <Link href="#" className="text-white/80 hover:text-white transition-colors">
                 Terms of Service
               </Link>
-              <Link href="#" className="text-gray-400 hover:text-white transition-colors">
+              <Link href="#" className="text-white/80 hover:text-white transition-colors">
                 Accessibility
               </Link>
             </motion.div>
